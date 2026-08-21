@@ -16,68 +16,42 @@ st.set_page_config(
 
 
 # =========================================================
-# PATHS
+# FILE PATHS
 # =========================================================
 
-MODELS_DIR = "models"
-
-MODEL_PATH = os.path.join(
-    MODELS_DIR,
-    "xgboost_final_corrected.joblib"
-)
-
-PREPROCESSOR_PATH = os.path.join(
-    MODELS_DIR,
-    "final_preprocessor_corrected.joblib"
-)
-
-META_PATH = os.path.join(
-    MODELS_DIR,
-    "final_meta_corrected.joblib"
-)
-
-TRAIN_PATH = "train.csv"
+MODEL_PATH = "xgboost_tuned.joblib"
+META_PATH = "meta.joblib"
 
 
 # =========================================================
-# LOAD MODEL ARTIFACTS
+# LOAD MODEL
 # =========================================================
 
 @st.cache_resource
-def load_artifacts():
-
-    model = joblib.load(MODEL_PATH)
-    preprocessor = joblib.load(PREPROCESSOR_PATH)
-    meta = joblib.load(META_PATH)
-
-    return model, preprocessor, meta
+def load_model():
+    return joblib.load(MODEL_PATH)
 
 
-# =========================================================
-# LOAD TRAINING DATA
-# =========================================================
-
-@st.cache_data
-def load_training_data():
-
-    return pd.read_csv(TRAIN_PATH)
+@st.cache_resource
+def load_meta():
+    return joblib.load(META_PATH)
 
 
 # =========================================================
-# LOAD EVERYTHING
+# LOAD ARTIFACTS
 # =========================================================
 
 try:
 
-    model, preprocessor, meta = load_artifacts()
-    train = load_training_data()
+    model = load_model()
+    meta = load_meta()
 
-    artifacts_loaded = True
+    model_loaded = True
 
 except Exception as e:
 
-    artifacts_loaded = False
-    st.error(f"Error loading model artifacts: {e}")
+    model_loaded = False
+    st.error(f"Error loading model: {e}")
 
 
 # =========================================================
@@ -86,9 +60,9 @@ except Exception as e:
 
 st.sidebar.header("Model Selection")
 
-if artifacts_loaded:
+if model_loaded:
 
-    st.sidebar.success("Loaded: xgboost_final_corrected.joblib")
+    st.sidebar.success("Loaded: xgboost_tuned.joblib")
 
 
 # =========================================================
@@ -151,9 +125,9 @@ st.markdown("---")
 
 if st.button("Predict Testing Time", type="primary"):
 
-    if not artifacts_loaded:
+    if not model_loaded:
 
-        st.error("Please make sure the model files exist in the models folder.")
+        st.error("Model could not be loaded.")
 
     else:
 
@@ -163,64 +137,64 @@ if st.button("Predict Testing Time", type="primary"):
             # Get the original feature columns
             # -------------------------------------------------
 
-            feature_columns = meta["feature_columns_before_encoding"]
+            feature_columns = meta["feature_columns"]
 
 
             # -------------------------------------------------
-            # Create default input row
+            # Create one complete vehicle configuration
             # -------------------------------------------------
 
-            input_row = {}
+            input_data = {}
 
             for column in feature_columns:
 
-                # Categorical features
-                if train[column].dtype == "object":
+                # Categorical features:
+                # use the first known category from the metadata
 
-                    input_row[column] = train[column].mode()[0]
+                if column in meta["cat_cols"]:
 
-                # Numeric features
+                    input_data[column] = meta["cat_options"][column][0]
+
+                # Binary / numeric features:
+                # default = 0
+
                 else:
 
-                    input_row[column] = 0.0
+                    input_data[column] = 0
 
 
             # -------------------------------------------------
-            # Replace the four important features
+            # Replace the four important UI features
             # -------------------------------------------------
 
-            input_row["X314"] = X314
-            input_row["X261"] = X261
-            input_row["X118"] = X118
-            input_row["X127"] = X127
+            input_data["X314"] = X314
+            input_data["X261"] = X261
+            input_data["X118"] = X118
+            input_data["X127"] = X127
 
 
             # -------------------------------------------------
-            # Convert to DataFrame
+            # Create DataFrame
             # -------------------------------------------------
 
             input_df = pd.DataFrame(
-                [input_row],
+                [input_data],
                 columns=feature_columns
             )
 
 
             # -------------------------------------------------
-            # Apply the same preprocessing used during training
+            # Predict
+            #
+            # xgboost_tuned.joblib is already a Pipeline
+            # containing preprocessing + XGBoost.
             # -------------------------------------------------
 
-            processed_input = preprocessor.transform(input_df)
-
-
-            # -------------------------------------------------
-            # Prediction
-            # -------------------------------------------------
-
-            prediction = model.predict(processed_input)[0]
+            prediction = model.predict(input_df)[0]
 
 
             # -------------------------------------------------
-            # Display prediction
+            # Display result
             # -------------------------------------------------
 
             st.balloons()
