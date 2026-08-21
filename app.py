@@ -18,7 +18,7 @@ st.markdown("Select a trained model and input features to predict the testing ti
 st.sidebar.header("Model Selection")
 
 # Path to the models folder
-MODELS_DIR = "models"  # Change this to your models folder name if different
+MODELS_DIR = "."  # Change this to your models folder name if different
 
 # List models inside the folder
 if os.path.exists(MODELS_DIR):
